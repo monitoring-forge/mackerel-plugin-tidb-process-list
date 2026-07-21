@@ -71,6 +71,7 @@ type TiDBProcessListPlugin struct {
 	prefix   string
 	Username string
 	Password string
+	User     string
 
 	EnableTLS     bool
 	TLSRootCert   string
@@ -151,7 +152,14 @@ type processRow struct {
 func (p *TiDBProcessListPlugin) fetchClusterProcesslist(db *sql.DB) (map[string]float64, error) {
 	query := `SELECT INSTANCE, COMMAND, STATE, TIME, MEM, DISK, TIDB_CPU, TIKV_CPU, ROWS_AFFECTED
 			  FROM INFORMATION_SCHEMA.CLUSTER_PROCESSLIST`
-	rows, err := db.Query(query)
+
+	args := []any{}
+	if p.User != "" {
+		query += ` WHERE USER = ?`
+		args = append(args, p.User)
+	}
+
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query cluster_processlist: %w", err)
 	}
@@ -451,6 +459,7 @@ func Do() {
 	optPort := flag.String("port", "4000", "Port")
 	optUser := flag.String("username", "root", "Username")
 	optPass := flag.String("password", os.Getenv("TIDB_PASSWORD"), "Password")
+	optFilterUser := flag.String("user", "", "Filter processlist by USER")
 	optTempfile := flag.String("tempfile", "", "Temp file name")
 	optMetricKeyPrefix := flag.String("metric-key-prefix", "tidb.processlist", "Metric key prefix")
 	optEnableTLS := flag.Bool("tls", false, "Enables TLS connection")
@@ -463,6 +472,7 @@ func Do() {
 		Target:        net.JoinHostPort(*optHost, *optPort),
 		Username:      *optUser,
 		Password:      *optPass,
+		User:          *optFilterUser,
 		prefix:        *optMetricKeyPrefix,
 		EnableTLS:     *optEnableTLS,
 		TLSRootCert:   *optTLSRootCert,

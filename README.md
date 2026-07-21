@@ -8,7 +8,7 @@ TiDB 向けの [mackerel.io](https://mackerel.io) カスタムメトリクスプ
 ## Synopsis
 
 ```shell
-mackerel-plugin-tidb-process-list [-host=<host>] [-port=<port>] [-username=<username>] [-password=<password>] [-tempfile=<tempfile>] [-metric-key-prefix=<prefix>] [-tls=true] [-tls-root-cert=<filename>] [-tls-skip-verify=true]
+mackerel-plugin-tidb-process-list [-host=<host>] [-port=<port>] [-username=<username>] [-password=<password>] [-user=<user>] [-tempfile=<tempfile>] [-metric-key-prefix=<prefix>] [-tls=true] [-tls-root-cert=<filename>] [-tls-skip-verify=true]
 ```
 
 ## mackerel-agent.conf の記述例
@@ -16,6 +16,13 @@ mackerel-plugin-tidb-process-list [-host=<host>] [-port=<port>] [-username=<user
 ```
 [plugin.metrics.tidb-process-list]
 command = "/path/to/mackerel-plugin-tidb-process-list -host=127.0.0.1 -port=4000 -username=root -password=YOUR_PASSWORD"
+```
+
+特定の DB ユーザーで絞り込む場合は `-user` オプションを指定します。
+
+```
+[plugin.metrics.tidb-process-list]
+command = "/path/to/mackerel-plugin-tidb-process-list -host=127.0.0.1 -port=4000 -username=root -password=YOUR_PASSWORD -user=app_user"
 ```
 
 ## 収集するメトリクス
