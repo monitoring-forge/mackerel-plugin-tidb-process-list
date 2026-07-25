@@ -72,6 +72,10 @@ type TiDBProcessListPlugin struct {
 	Username string
 	Password string
 
+	// FilterUsers restricts CLUSTER_PROCESSLIST aggregation to the given
+	// users. Empty means aggregate all users.
+	FilterUsers []string
+
 	EnableTLS     bool
 	TLSRootCert   string
 	TLSSkipVerify bool
@@ -148,10 +152,30 @@ type processRow struct {
 	RowsAffected *int64
 }
 
-func (p *TiDBProcessListPlugin) fetchClusterProcesslist(db *sql.DB) (map[string]float64, error) {
+// buildProcesslistQuery builds the CLUSTER_PROCESSLIST query and its
+// arguments, adding a WHERE USER IN (...) clause when filterUsers is set.
+func buildProcesslistQuery(filterUsers []string) (string, []interface{}) {
 	query := `SELECT INSTANCE, COMMAND, STATE, TIME, MEM, DISK, TIDB_CPU, TIKV_CPU, ROWS_AFFECTED
 			  FROM INFORMATION_SCHEMA.CLUSTER_PROCESSLIST`
-	rows, err := db.Query(query)
+
+	if len(filterUsers) == 0 {
+		return query, nil
+	}
+
+	placeholders := make([]string, len(filterUsers))
+	args := make([]interface{}, len(filterUsers))
+	for i, u := range filterUsers {
+		placeholders[i] = "?"
+		args[i] = u
+	}
+	query += " WHERE USER IN (" + strings.Join(placeholders, ", ") + ")"
+
+	return query, args
+}
+
+func (p *TiDBProcessListPlugin) fetchClusterProcesslist(db *sql.DB) (map[string]float64, error) {
+	query, args := buildProcesslistQuery(p.FilterUsers)
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query cluster_processlist: %w", err)
 	}
@@ -445,12 +469,29 @@ func (p *TiDBProcessListPlugin) GraphDefinition() map[string]mp.Graphs {
 	}
 }
 
+// parseFilterUsers splits a comma-separated user list into a slice, trimming
+// whitespace and dropping empty entries. Returns nil for an empty input.
+func parseFilterUsers(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+
+	var users []string
+	for _, u := range strings.Split(raw, ",") {
+		if u = strings.TrimSpace(u); u != "" {
+			users = append(users, u)
+		}
+	}
+	return users
+}
+
 // Do is the entry point.
 func Do() {
 	optHost := flag.String("host", "localhost", "Hostname")
 	optPort := flag.String("port", "4000", "Port")
 	optUser := flag.String("username", "root", "Username")
 	optPass := flag.String("password", os.Getenv("TIDB_PASSWORD"), "Password")
+	optFilterUser := flag.String("filter-user", "", "Comma-separated list of users to filter CLUSTER_PROCESSLIST by (empty means all users)")
 	optTempfile := flag.String("tempfile", "", "Temp file name")
 	optMetricKeyPrefix := flag.String("metric-key-prefix", "tidb.processlist", "Metric key prefix")
 	optEnableTLS := flag.Bool("tls", false, "Enables TLS connection")
@@ -464,6 +505,7 @@ func Do() {
 		Username:      *optUser,
 		Password:      *optPass,
 		prefix:        *optMetricKeyPrefix,
+		FilterUsers:   parseFilterUsers(*optFilterUser),
 		EnableTLS:     *optEnableTLS,
 		TLSRootCert:   *optTLSRootCert,
 		TLSSkipVerify: *optTLSSkipVerify,

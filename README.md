@@ -8,7 +8,7 @@ TiDB 向けの [mackerel.io](https://mackerel.io) カスタムメトリクスプ
 ## Synopsis
 
 ```shell
-mackerel-plugin-tidb-process-list [-host=<host>] [-port=<port>] [-username=<username>] [-password=<password>] [-tempfile=<tempfile>] [-metric-key-prefix=<prefix>] [-tls=true] [-tls-root-cert=<filename>] [-tls-skip-verify=true]
+mackerel-plugin-tidb-process-list [-host=<host>] [-port=<port>] [-username=<username>] [-password=<password>] [-filter-user=<user>[,<user>...]] [-tempfile=<tempfile>] [-metric-key-prefix=<prefix>] [-tls=true] [-tls-root-cert=<filename>] [-tls-skip-verify=true]
 ```
 
 ## mackerel-agent.conf の記述例
@@ -17,6 +17,17 @@ mackerel-plugin-tidb-process-list [-host=<host>] [-port=<port>] [-username=<user
 [plugin.metrics.tidb-process-list]
 command = "/path/to/mackerel-plugin-tidb-process-list -host=127.0.0.1 -port=4000 -username=root -password=YOUR_PASSWORD"
 ```
+
+## ユーザーによる絞り込み
+
+`-filter-user` を指定すると、`INFORMATION_SCHEMA.CLUSTER_PROCESSLIST` の集計対象を特定の `USER` に限定できます。カンマ区切りで複数ユーザーを指定できます。
+
+```
+command = "/path/to/mackerel-plugin-tidb-process-list -host=127.0.0.1 -port=4000 -username=root -password=YOUR_PASSWORD -filter-user=app,batch"
+```
+
+- 空（未指定）の場合は従来どおり全ユーザーを集計します。
+- **この絞り込みはプロセスリスト系メトリクス（State / Command / Time / Resources / CPU / Rows）にのみ適用されます。** `INFORMATION_SCHEMA.CLUSTER_STATEMENTS_SUMMARY` は SQL ダイジェスト単位で集計され `USER` カラムを持たないため、レイテンシ系メトリクス（`AvgLatency_*` / `MaxLatency_*` / `ExecCount_*`）はクラスター全体の値のまま変化しません。
 
 ## 収集するメトリクス
 

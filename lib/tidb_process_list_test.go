@@ -274,6 +274,35 @@ func TestGraphDefinition(t *testing.T) {
 	assert.True(t, countGraph.Metrics[0].Diff)
 }
 
+func TestBuildProcesslistQuery(t *testing.T) {
+	t.Run("no filter", func(t *testing.T) {
+		query, args := buildProcesslistQuery(nil)
+		assert.NotContains(t, query, "WHERE")
+		assert.Empty(t, args)
+	})
+
+	t.Run("single user", func(t *testing.T) {
+		query, args := buildProcesslistQuery([]string{"app"})
+		assert.Contains(t, query, "WHERE USER IN (?)")
+		assert.Equal(t, []interface{}{"app"}, args)
+	})
+
+	t.Run("multiple users", func(t *testing.T) {
+		query, args := buildProcesslistQuery([]string{"app", "batch", "readonly"})
+		assert.Contains(t, query, "WHERE USER IN (?, ?, ?)")
+		assert.Equal(t, []interface{}{"app", "batch", "readonly"}, args)
+	})
+}
+
+func TestParseFilterUsers(t *testing.T) {
+	assert.Nil(t, parseFilterUsers(""))
+	assert.Nil(t, parseFilterUsers("   "))
+	assert.Equal(t, []string{"app"}, parseFilterUsers("app"))
+	assert.Equal(t, []string{"app", "batch"}, parseFilterUsers("app,batch"))
+	assert.Equal(t, []string{"app", "batch"}, parseFilterUsers(" app , batch "))
+	assert.Equal(t, []string{"app", "batch"}, parseFilterUsers("app,,batch,"))
+}
+
 func TestMetricKeyPrefixDefault(t *testing.T) {
 	p := &TiDBProcessListPlugin{}
 	assert.Equal(t, "tidb.processlist", p.MetricKeyPrefix())
